@@ -11,33 +11,31 @@ function ControlBar({
   onChangeStartNode,
 }) {
   return (
-    <div
-      style={{
-        padding: "20px",
-        background: "linear-gradient(180deg,#f8f9fa, #ffffff)",
-        borderRadius: "8px",
-        marginBottom: "20px",
-      }}
-    >
-      <h3>Simulation Controls</h3>
+    <div className="panel" style={{ marginBottom: 24 }}>
+      <h3 style={{ marginTop: 0 }}>Simulation Controls</h3>
       <div
         style={{
           display: "flex",
-          gap: "10px",
+          gap: "12px",
+          flexWrap: "wrap",
           alignItems: "center",
-          marginBottom: "15px",
+          marginBottom: "18px",
         }}
       >
         <button
           onClick={onStartPause}
           style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            background: isRunning ? "#ff6b6b" : "#51cf66",
+            padding: "10px 22px",
+            fontSize: "15px",
+            background: isRunning
+              ? "linear-gradient(135deg,#f43f5e,#fb7185)"
+              : "linear-gradient(135deg,#10b981,#34d399)",
             color: "white",
-            border: "none",
-            borderRadius: "5px",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
             cursor: "pointer",
+            fontWeight: 600,
+            letterSpacing: 0.5,
           }}
         >
           {isRunning ? "Pause" : "Start"}
@@ -45,42 +43,49 @@ function ControlBar({
         <button
           onClick={onReset}
           style={{
-            padding: "10px 20px",
-            fontSize: "16px",
-            background: "#339af0",
+            padding: "10px 22px",
+            fontSize: "15px",
+            background: "linear-gradient(135deg,#3b82f6,#60a5fa)",
             color: "white",
-            border: "none",
-            borderRadius: "5px",
+            border: "1px solid rgba(255,255,255,0.2)",
+            borderRadius: "8px",
             cursor: "pointer",
+            fontWeight: 600,
+            letterSpacing: 0.5,
           }}
         >
           Reset
         </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <label style={{ minWidth: 90, fontSize: 13, opacity: 0.8 }}>
+            Start Node
+          </label>
+          <select
+            value={startNode}
+            onChange={(e) => onChangeStartNode?.(e.target.value)}
+            style={{
+              padding: 8,
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.1)",
+              color: "#f8fafc",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            {nodeOptions.map((opt) => (
+              <option
+                key={opt.value}
+                value={opt.value}
+                style={{ color: "#0f172a" }}
+              >
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        <label style={{ minWidth: 100 }}>Start Node:</label>
-        <select
-          value={startNode}
-          onChange={(e) => onChangeStartNode?.(e.target.value)}
-          style={{ padding: 8, borderRadius: 6, border: "1px solid #ced4da" }}
-        >
-          {nodeOptions.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label style={{ display: "block", marginBottom: "5px" }}>
-          Simulation Speed: {simulationSpeed}ms
+      <div style={{ marginTop: 4 }}>
+        <label style={{ display: "block", marginBottom: 6, fontSize: 13 }}>
+          Simulation Speed: <strong>{simulationSpeed}ms</strong>
         </label>
         <input
           type="range"

@@ -1,105 +1,71 @@
-import { matrix, transpose, eigs } from "mathjs";
-
-// Function to calculate the stationary distribution (pi)
+// Robust analytical stationary distribution via power iteration (no external eigs)
 export function calculateAnalyticalPi(adjList, nodeIds) {
   const numNodes = nodeIds.length;
-  const nodeIndex = new Map(nodeIds.map((id, i) => [id, i]));
+  const indexOf = new Map(nodeIds.map((id, i) => [id, i]));
 
-  // 1. Create Adjacency Matrix (A)
-  let A = Array(numNodes)
-    .fill(0)
-    .map(() => Array(numNodes).fill(0));
-  for (const nodeId of nodeIds) {
-    const i = nodeIndex.get(nodeId);
-    for (const neighborId of adjList[nodeId]) {
-      const j = nodeIndex.get(neighborId);
+  // Build adjacency matrix
+  const A = Array.from({ length: numNodes }, () => Array(numNodes).fill(0));
+  for (const id of nodeIds) {
+    const i = indexOf.get(id);
+    const neighbors = adjList[id] || [];
+    for (const nbr of neighbors) {
+      if (!indexOf.has(nbr)) continue;
+      const j = indexOf.get(nbr);
       A[i][j] = 1;
     }
   }
 
-  // 2. Create Transition Matrix (P)
-  let P = A.map((row) => {
+  // Transition matrix P (row-stochastic). If degree=0 make absorbing.
+  const P = A.map((row, i) => {
     const degree = row.reduce((a, b) => a + b, 0);
-    return degree === 0 ? row : row.map((val) => val / degree);
+    if (degree === 0) {
+      const selfLoop = Array(numNodes).fill(0);
+      selfLoop[i] = 1;
+      return selfLoop;
+    }
+    return row.map((v) => v / degree);
   });
 
-  // 3. Solve for stationary distribution using math.js
-  // We need the eigenvector of P.T for eigenvalue 1
-  try {
-    const P_T = transpose(matrix(P));
-    const result = eigs(P_T);
-
-    // Safely coerce outputs to plain arrays
-    const valuesRaw = result.values;
-    const eigenvectorsRaw = result.eigenvectors;
-    const values =
-      typeof valuesRaw?.toArray === "function"
-        ? valuesRaw.toArray()
-        : Array.isArray(valuesRaw)
-        ? valuesRaw
-        : [];
-    const eigenvectorsMatrix =
-      typeof eigenvectorsRaw?.toArray === "function"
-        ? eigenvectorsRaw.toArray()
-        : Array.isArray(eigenvectorsRaw)
-        ? eigenvectorsRaw
-        : [];
-
-    if (!values.length || !eigenvectorsMatrix.length) {
-      throw new Error("Empty eigs() result");
-    }
-
-    // Find eigenvalue with real part closest to 1
-    let idx = 0;
-    let bestDelta = Infinity;
-    for (let i = 0; i < values.length; i++) {
-      const ev = values[i];
-      const re =
-        ev && typeof ev === "object" && "re" in ev ? ev.re : Number(ev);
-      const d = Math.abs(1 - re);
-      if (d < bestDelta) {
-        bestDelta = d;
-        idx = i;
+  // Power iteration on left eigenvector: pi = pi * P
+  let pi = Array(numNodes).fill(1 / numNodes);
+  const maxIter = 1500;
+  const tol = 1e-12;
+  for (let iter = 0; iter < maxIter; iter++) {
+    const next = Array(numNodes).fill(0);
+    for (let i = 0; i < numNodes; i++) {
+      const row = P[i];
+      const weight = pi[i];
+      if (weight === 0) continue;
+      for (let j = 0; j < numNodes; j++) {
+        const p = row[j];
+        if (p !== 0) next[j] += weight * p;
       }
     }
-
-    // Eigenvectors are columns; pick column idx
-    let piVector = eigenvectorsMatrix.map((row) => {
-      const v = row[idx];
-      const re = v && typeof v === "object" && "re" in v ? v.re : Number(v);
-      return Number.isFinite(re) ? Math.abs(re) : 0;
-    });
-
-    let sum = piVector.reduce((a, b) => a + b, 0);
-    if (!Number.isFinite(sum) || sum === 0) {
-      throw new Error("Invalid eigenvector sum");
-    }
-
-    const normalizedPi = piVector.map((v) => v / sum);
-
-    const piDict = {};
-    nodeIds.forEach((id, i) => {
-      piDict[id] = normalizedPi[i];
-    });
-    return piDict;
-  } catch (err) {
-    // Fallback: for undirected graphs, pi_i ∝ degree(i)
-    try {
-      const degrees = A.map((row) => row.reduce((a, b) => a + b, 0));
-      const totalDegree = degrees.reduce((a, b) => a + b, 0);
-      if (totalDegree > 0) {
-        const piDict = {};
-        nodeIds.forEach((id, i) => {
-          piDict[id] = degrees[i] / totalDegree;
-        });
-        console.warn(
-          "eigs() failed, using degree-based stationary distribution:",
-          err?.message || err
-        );
-        return piDict;
-      }
-    } catch (_) {}
-    console.error("Error in analytical calculation and fallback:", err);
-    return {};
+    const sum = next.reduce((a, b) => a + b, 0);
+    if (sum === 0 || !Number.isFinite(sum)) break;
+    for (let j = 0; j < numNodes; j++) next[j] /= sum;
+    let diff = 0;
+    for (let j = 0; j < numNodes; j++) diff += Math.abs(next[j] - pi[j]);
+    pi = next;
+    if (diff < tol) break;
   }
+
+  const sumPi = pi.reduce((a, b) => a + b, 0);
+  if (!Number.isFinite(sumPi) || Math.abs(sumPi - 1) > 1e-6) {
+    const degrees = A.map((row) => row.reduce((a, b) => a + b, 0));
+    const totalDegree = degrees.reduce((a, b) => a + b, 0);
+    if (totalDegree > 0) {
+      pi = degrees.map((d) => d / totalDegree);
+      console.warn(
+        "Power iteration normalization issue; used degree-based distribution"
+      );
+    } else {
+      pi = Array(numNodes).fill(1 / numNodes);
+      console.warn("Graph empty; using uniform distribution");
+    }
+  }
+
+  const result = {};
+  nodeIds.forEach((id, i) => (result[id] = pi[i]));
+  return result;
 }

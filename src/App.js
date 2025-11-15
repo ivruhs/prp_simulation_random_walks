@@ -28,49 +28,54 @@ const NODE_LABELS = {
   P: "SAC-2",
   Q: "Girls Hostel",
   R: "Bungalows",
-  S: "STP & RO Plant",
-  T: "DG/Sub Station",
 };
 
 // Approximate positions laid out to resemble the map
-const INITIAL_NODES = [
-  { id: "S", position: { x: 60, y: 60 }, data: { label: NODE_LABELS.S } },
-  { id: "L", position: { x: 130, y: 260 }, data: { label: NODE_LABELS.L } },
-  { id: "H", position: { x: 300, y: 260 }, data: { label: NODE_LABELS.H } },
-  { id: "I", position: { x: 240, y: 420 }, data: { label: NODE_LABELS.I } },
-  { id: "J", position: { x: 180, y: 500 }, data: { label: NODE_LABELS.J } },
-  { id: "K", position: { x: 120, y: 560 }, data: { label: NODE_LABELS.K } },
-  { id: "T", position: { x: 160, y: 620 }, data: { label: NODE_LABELS.T } },
+// Base positions with good separation (scaled at runtime for spacing)
+const BASE_POS = {
+  L: { x: 100, y: 180 },
+  H: { x: 280, y: 180 },
+  I: { x: 220, y: 360 },
+  J: { x: 160, y: 460 },
+  K: { x: 110, y: 540 },
+  G: { x: 500, y: 160 },
+  A: { x: 600, y: 220 },
+  B: { x: 660, y: 270 },
+  C: { x: 630, y: 340 },
+  D: { x: 570, y: 390 },
+  E: { x: 500, y: 390 },
+  F: { x: 450, y: 460 },
+  M: { x: 700, y: 140 },
+  N: { x: 740, y: 180 },
+  O: { x: 820, y: 230 },
+  P: { x: 900, y: 320 },
+  Q: { x: 860, y: 480 },
+  R: { x: 830, y: 560 },
+};
 
-  { id: "G", position: { x: 520, y: 220 }, data: { label: NODE_LABELS.G } },
-  { id: "A", position: { x: 620, y: 260 }, data: { label: NODE_LABELS.A } },
-  { id: "B", position: { x: 680, y: 310 }, data: { label: NODE_LABELS.B } },
-  { id: "C", position: { x: 650, y: 380 }, data: { label: NODE_LABELS.C } },
-  { id: "D", position: { x: 590, y: 430 }, data: { label: NODE_LABELS.D } },
-  { id: "E", position: { x: 520, y: 430 }, data: { label: NODE_LABELS.E } },
-  { id: "F", position: { x: 470, y: 490 }, data: { label: NODE_LABELS.F } },
+const SCALE = 1.35;
+const OFFSET = { x: 0, y: 0 };
 
-  { id: "M", position: { x: 700, y: 200 }, data: { label: NODE_LABELS.M } },
-  { id: "N", position: { x: 740, y: 230 }, data: { label: NODE_LABELS.N } },
-  { id: "O", position: { x: 820, y: 280 }, data: { label: NODE_LABELS.O } },
-  { id: "P", position: { x: 900, y: 360 }, data: { label: NODE_LABELS.P } },
-  { id: "Q", position: { x: 860, y: 520 }, data: { label: NODE_LABELS.Q } },
-  { id: "R", position: { x: 830, y: 600 }, data: { label: NODE_LABELS.R } },
-];
+const INITIAL_NODES = Object.keys(BASE_POS).map((id) => ({
+  id,
+  position: {
+    x: BASE_POS[id].x * SCALE + OFFSET.x,
+    y: BASE_POS[id].y * SCALE + OFFSET.y,
+  },
+  data: { label: NODE_LABELS[id] },
+}));
 
 // Adjacency list inferred from map paths (approximate)
 const GRAPH_ADJACENCY = {
-  // Left and academic block area
-  S: ["L", "H"],
-  L: ["S", "K", "H"],
+  // Left and academic block area (removed S & T)
+  L: ["K", "H"],
   H: ["L", "I", "G"],
   I: ["H", "J", "F"],
   J: ["I", "K", "F"],
-  K: ["J", "L", "T", "F"],
-  T: ["K"],
+  K: ["J", "L", "F"],
 
   // Central ring and connections
-  G: ["A", "B", "C", "H", "M"],
+  G: ["A", "B", "C", "H", "M", "D"],
   A: ["G", "B", "E"],
   B: ["A", "C", "G"],
   C: ["B", "D", "G"],
@@ -222,6 +227,7 @@ function App() {
             totalSteps={totalSteps}
             visitCounts={visitCounts}
             currentNode={currentNode}
+            nodeLabels={NODE_LABELS}
           />
           <ComparisonChart
             analyticalPi={analyticalPi}

@@ -25,16 +25,16 @@ function ComparisonChart({ analyticalPi, empiricalPi }) {
   }, [analyticalPi, empiricalPi]);
 
   return (
-    <div style={{ marginTop: "20px" }}>
-      <h3>Distribution Comparison</h3>
+    <div className="panel" style={{ marginTop: "20px" }}>
+      <h3 style={{ marginTop: 0 }}>Distribution Comparison</h3>
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData}>
-          <XAxis dataKey="name" />
-          <YAxis />
+          <XAxis dataKey="name" stroke="#94a3b8" />
+          <YAxis stroke="#94a3b8" />
           <Tooltip />
           <Legend />
-          <Bar dataKey="Analytical" fill="#8884d8" />
-          <Bar dataKey="Simulation" fill="#82ca9d" />
+          <Bar dataKey="Analytical" fill="#6366f1" />
+          <Bar dataKey="Simulation" fill="#10b981" />
         </BarChart>
       </ResponsiveContainer>
     </div>

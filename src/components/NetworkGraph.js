@@ -9,55 +9,59 @@ function NetworkGraph({ nodes, edges, currentNode }) {
         return {
           ...node,
           style: {
-            background: "#e03131",
-            color: "white",
-            border: "2px solid #e03131",
-            fontWeight: "bold",
-            boxShadow: "0 8px 20px rgba(224,49,49,0.35)",
+            background: "linear-gradient(135deg,#dc2626,#ef4444)",
+            color: "#fff",
+            border: "1px solid rgba(255,255,255,0.35)",
+            fontWeight: 600,
+            borderRadius: 14,
+            boxShadow: "0 10px 30px -5px rgba(239,68,68,0.55)",
+            padding: 6,
           },
         };
       }
       return {
         ...node,
         style: {
-          background: "#ffffff",
-          color: "#222",
-          border: "1px solid #ced4da",
-          borderRadius: 8,
-          boxShadow: "0 4px 14px rgba(33,37,41,0.08)",
+          background:
+            "linear-gradient(160deg,rgba(255,255,255,0.08),rgba(255,255,255,0.02))",
+          color: "#f1f5f9",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: 14,
+          boxShadow: "0 6px 20px -6px rgba(0,0,0,0.6)",
+          backdropFilter: "blur(6px)",
+          WebkitBackdropFilter: "blur(6px)",
+          padding: 6,
+          fontSize: 13,
         },
       };
     });
   }, [nodes, currentNode]);
 
   return (
-    <div
-      style={{
-        height: "620px",
-        border: "1px solid #e9ecef",
-        borderRadius: 10,
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ height: "760px", borderRadius: 18, overflow: "hidden" }}>
       <ReactFlow
         nodes={styledNodes}
         edges={edges}
         fitView
+        fitViewOptions={{ padding: 0.2 }}
+        minZoom={0.25}
+        maxZoom={1.6}
+        defaultViewport={{ x: 0, y: 0, zoom: 0.85 }}
         attributionPosition="bottom-left"
         defaultEdgeOptions={{
           animated: true,
           type: "smoothstep",
-          style: { stroke: "#5c7cfa" },
+          style: { stroke: "#60a5fa", strokeWidth: 2 },
         }}
       >
         <MiniMap
           nodeStrokeColor={(n) =>
-            n.id === currentNode ? "#e03131" : "#495057"
+            n.id === currentNode ? "#ef4444" : "#64748b"
           }
-          nodeColor={(n) => (n.id === currentNode ? "#fa5252" : "#adb5bd")}
+          nodeColor={(n) => (n.id === currentNode ? "#dc2626" : "#334155")}
         />
         <Controls position="bottom-right" />
-        <Background gap={24} color="#f1f3f5" />
+        <Background gap={40} color="#1e293b" />
       </ReactFlow>
     </div>
   );
