@@ -9,6 +9,22 @@ function StatsDisplay({ totalSteps, visitCounts, currentNode, nodeLabels }) {
     }));
   }, [visitCounts, nodeLabels]);
 
+  const socialHub = useMemo(() => {
+    let maxId = null;
+    let maxCount = -1;
+    for (const [id, count] of Object.entries(visitCounts)) {
+      if (count > maxCount) {
+        maxId = id;
+        maxCount = count;
+      }
+    }
+    return {
+      id: maxId,
+      name: maxId ? nodeLabels?.[maxId] || maxId : "—",
+      count: Math.max(0, maxCount),
+    };
+  }, [visitCounts, nodeLabels]);
+
   return (
     <div className="panel stats-panel">
       <div className="panel-header">
@@ -26,6 +42,12 @@ function StatsDisplay({ totalSteps, visitCounts, currentNode, nodeLabels }) {
           <span className="metric-label">Current Node</span>
           <span className="metric-value">
             {currentNode} · {nodeLabels?.[currentNode]}
+          </span>
+        </div>
+        <div className="metric-box" style={{ width: "100%" }}>
+          <span className="metric-label">Social Hub (Most Visited)</span>
+          <span className="metric-value">
+            {socialHub.id ? `${socialHub.id} · ${socialHub.name}` : "—"}
           </span>
         </div>
       </div>
