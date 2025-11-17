@@ -1,3 +1,4 @@
+// src/App.js
 import React, { useState, useEffect, useMemo } from "react";
 import NetworkGraph from "./components/NetworkGraph";
 import ComparisonChart from "./components/ComparisonChart";
@@ -5,10 +6,21 @@ import ErrorChart from "./components/ErrorChart";
 import ControlBar from "./components/ControlBar";
 import StatsDisplay from "./components/StatsDisplay";
 import { useRandomWalkLoop } from "./hooks/useRandomWalkLoop";
-import { calculateAnalyticalPi } from "./utils/analyticalMath";
+import {
+  calculateAnalyticalPi,
+  validateAndSymmetrizeAdj,
+} from "./utils/analyticalMath";
 import "./components/App.css";
 
-// DA-IICT Campus Graph (Nodes from legend A..T)
+/*
+  App.js
+  - High-level wiring for the DA-IICT Random Walk demo.
+  - Uses the improved simulation hook and mathematically-sound analytical pi.
+*/
+
+/* ---------------------------
+   Static graph definition
+   --------------------------- */
 const NODE_LABELS = {
   A: "Admin",
   B: "Faculty-4",
@@ -30,8 +42,6 @@ const NODE_LABELS = {
   R: "Campus Residencies",
 };
 
-// Approximate positions laid out to resemble the map
-// Base positions with good separation (scaled at runtime for spacing)
 const BASE_POS = {
   L: { x: 100, y: 180 },
   H: { x: 280, y: 180 },
@@ -56,25 +66,13 @@ const BASE_POS = {
 const SCALE = 1.35;
 const OFFSET = { x: 0, y: 0 };
 
-const INITIAL_NODES = Object.keys(BASE_POS).map((id) => ({
-  id,
-  position: {
-    x: BASE_POS[id].x * SCALE + OFFSET.x,
-    y: BASE_POS[id].y * SCALE + OFFSET.y,
-  },
-  data: { label: NODE_LABELS[id] },
-}));
-
-// Adjacency list inferred from map paths (approximate)
-const GRAPH_ADJACENCY = {
-  // Left and academic block area (removed S & T)
+// Static adjacency (intended as undirected). We will symmetrize/validate it in code.
+const GRAPH_ADJACENCY_RAW = {
   L: ["K", "H"],
   H: ["L", "I", "G"],
   I: ["H", "J", "F"],
   J: ["I", "K", "F"],
   K: ["J", "L", "F"],
-
-  // Central ring and connections
   G: ["A", "B", "C", "H", "M", "D"],
   A: ["G", "B", "E"],
   B: ["A", "C", "G"],
@@ -82,8 +80,6 @@ const GRAPH_ADJACENCY = {
   D: ["C", "E", "F", "G"],
   E: ["A", "D", "F"],
   F: ["E", "D", "I", "J", "K"],
-
-  // Right cluster
   M: ["N", "G", "O"],
   N: ["M", "O"],
   O: ["N", "P", "M"],
@@ -109,43 +105,71 @@ function buildEdgesFromAdj(adj) {
   return edges;
 }
 
-const INITIAL_EDGES = buildEdgesFromAdj(GRAPH_ADJACENCY);
+function makeInitialNodes() {
+  return Object.keys(BASE_POS).map((id) => ({
+    id,
+    position: {
+      x: BASE_POS[id].x * SCALE + OFFSET.x,
+      y: BASE_POS[id].y * SCALE + OFFSET.y,
+    },
+    data: { label: NODE_LABELS[id] },
+  }));
+}
 
+/* ---------------------------
+   App component
+   --------------------------- */
 function App() {
-  // State management
+  // ----- UI / simulation state -----
   const [isRunning, setIsRunning] = useState(false);
   const [currentNode, setCurrentNode] = useState("A");
-  const [totalSteps, setTotalSteps] = useState(1);
-  const [simulationSpeed, setSimulationSpeed] = useState(100);
-  const [analyticalPi, setAnalyticalPi] = useState(null);
+  const [totalSteps, setTotalSteps] = useState(0); // 0-based counting
+  const [simulationSpeed, setSimulationSpeed] = useState(100); // ms per step
   const [errorHistory, setErrorHistory] = useState([]);
 
-  // Initialize visit counts with all nodes set to 0
+  // ----- visit counts (initialized to zero) -----
   const [visitCounts, setVisitCounts] = useState(() => {
-    const initialCounts = {};
-    NODE_IDS.forEach((id) => {
-      initialCounts[id] = 0;
-    });
-    initialCounts["A"] = 1; // Starting position
-    return initialCounts;
+    const initial = {};
+    NODE_IDS.forEach((id) => (initial[id] = 0));
+    return initial;
   });
 
-  // Calculate analytical pi on initial load
+  // ----- static data memoized -----
+  const INITIAL_NODES = useMemo(makeInitialNodes, []);
+  const [GRAPH_ADJACENCY, setGraphAdjacency] = useState(
+    () => GRAPH_ADJACENCY_RAW
+  );
+  const INITIAL_EDGES = useMemo(
+    () => buildEdgesFromAdj(GRAPH_ADJACENCY),
+    [GRAPH_ADJACENCY]
+  );
+
+  // ----- Validate & symmetrize adjacency on mount (and warn if inconsistencies) -----
   useEffect(() => {
-    const pi = calculateAnalyticalPi(GRAPH_ADJACENCY, NODE_IDS);
-    setAnalyticalPi(pi);
+    const sym = validateAndSymmetrizeAdj(GRAPH_ADJACENCY_RAW, NODE_IDS);
+    setGraphAdjacency(sym);
   }, []);
 
-  // Derive empirical pi efficiently using useMemo
+  // ----- Analytical stationary distribution (recompute if adjacency changes) -----
+  const analyticalPi = useMemo(() => {
+    if (!GRAPH_ADJACENCY) return null;
+    return calculateAnalyticalPi(GRAPH_ADJACENCY, NODE_IDS);
+  }, [GRAPH_ADJACENCY]);
+
+  // ----- Empirical π: safe handling for totalSteps === 0 -----
   const empiricalPi = useMemo(() => {
-    const empPi = {};
+    const emp = {};
+    if (totalSteps === 0) {
+      NODE_IDS.forEach((id) => (emp[id] = 0));
+      return emp;
+    }
     NODE_IDS.forEach((id) => {
-      empPi[id] = visitCounts[id] / totalSteps;
+      emp[id] = (visitCounts[id] || 0) / totalSteps;
     });
-    return empPi;
+    return emp;
   }, [visitCounts, totalSteps]);
 
-  // Use the random walk hook
+  // ----- Hook that runs the random walk loop -----
   useRandomWalkLoop({
     isRunning,
     simulationSpeed,
@@ -160,32 +184,31 @@ function App() {
     empiricalPi,
   });
 
-  // Handler functions
+  /* -----------------------
+     Handlers
+     ----------------------- */
   const handleStartPause = () => {
-    setIsRunning(!isRunning);
+    setIsRunning((s) => !s);
   };
 
   const handleReset = () => {
     setIsRunning(false);
     setCurrentNode("A");
-    setTotalSteps(1);
-    const resetCounts = {};
-    NODE_IDS.forEach((id) => {
-      resetCounts[id] = 0;
-    });
-    resetCounts["A"] = 1;
-    setVisitCounts(resetCounts);
+    setTotalSteps(0);
+    const reset = {};
+    NODE_IDS.forEach((id) => (reset[id] = 0));
+    setVisitCounts(reset);
     setErrorHistory([]);
   };
 
   const handleChangeStartNode = (startId) => {
     setIsRunning(false);
     setCurrentNode(startId);
-    setTotalSteps(1);
-    const counts = {};
-    NODE_IDS.forEach((id) => (counts[id] = 0));
-    counts[startId] = 1;
-    setVisitCounts(counts);
+    setTotalSteps(0);
+    const reset = {};
+    NODE_IDS.forEach((id) => (reset[id] = 0));
+    reset[startId] = 1; // treat start node as visited once at t=0 if desired
+    setVisitCounts(reset);
     setErrorHistory([]);
   };
 
@@ -197,10 +220,11 @@ function App() {
     <div className="app-container">
       <header>
         <h1>🎲 Random Walk on DA-IICT Campus Network</h1>
-        <p style={{ marginTop: 8, opacity: 0.8 }}>
-          Analytical vs Simulation — stationary distribution convergence
+        <p style={{ marginTop: 8, opacity: 0.85 }}>
+          Analytical π (power iteration) vs empirical π (Monte Carlo)
         </p>
       </header>
+
       <div className="main-content">
         <div className="left-column">
           <ControlBar
@@ -216,23 +240,32 @@ function App() {
             }))}
             onChangeStartNode={handleChangeStartNode}
           />
+
           <NetworkGraph
             nodes={INITIAL_NODES}
             edges={INITIAL_EDGES}
             currentNode={currentNode}
+            visitCounts={visitCounts}
+            analyticalPi={analyticalPi}
           />
         </div>
+
         <div className="right-column">
           <StatsDisplay
             totalSteps={totalSteps}
             visitCounts={visitCounts}
             currentNode={currentNode}
             nodeLabels={NODE_LABELS}
-          />
-          <ComparisonChart
             analyticalPi={analyticalPi}
             empiricalPi={empiricalPi}
           />
+
+          <ComparisonChart
+            analyticalPi={analyticalPi}
+            empiricalPi={empiricalPi}
+            nodeLabels={NODE_LABELS}
+          />
+
           <ErrorChart errorHistory={errorHistory} />
         </div>
       </div>

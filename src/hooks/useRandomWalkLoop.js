@@ -1,4 +1,13 @@
+// src/hooks/useRandomWalkLoop.js
 import { useEffect, useRef } from "react";
+
+/*
+  useRandomWalkLoop
+  - Stable, ref-driven simulation loop (no interval recreation per step).
+  - Records visits and increments steps atomically.
+  - Pushes TV error into history at a moderate cadence to avoid noisy charts.
+  - Designed to be Safe in React StrictMode (cleans up intervals and guards duplicates).
+*/
 
 export function useRandomWalkLoop({
   isRunning,
@@ -14,60 +23,84 @@ export function useRandomWalkLoop({
   empiricalPi,
 }) {
   const intervalRef = useRef(null);
+  const currentNodeRef = useRef(currentNode);
+  const adjRef = useRef(adjList);
+  const speedRef = useRef(simulationSpeed);
 
-  // Random walk simulation
+  // Keep refs in sync without causing re-creation of interval
   useEffect(() => {
-    if (isRunning) {
-      intervalRef.current = setInterval(() => {
-        // 1. Get neighbors (safe fallback to self)
-        const neighbors = adjList[currentNode] || [currentNode];
-        // 2. Choose next node at random
-        const nextNode =
-          neighbors[Math.floor(Math.random() * neighbors.length)] ||
-          currentNode;
+    currentNodeRef.current = currentNode;
+  }, [currentNode]);
 
-        // 3. Update state
-        setCurrentNode(nextNode);
-        setTotalSteps((prev) => prev + 1);
-        setVisitCounts((prevCounts) => ({
-          ...prevCounts,
-          [nextNode]: (prevCounts[nextNode] || 0) + 1,
-        }));
-      }, simulationSpeed);
-    } else {
+  useEffect(() => {
+    adjRef.current = adjList;
+  }, [adjList]);
+
+  useEffect(() => {
+    speedRef.current = simulationSpeed;
+  }, [simulationSpeed]);
+
+  // Main simulation effect: only depends on isRunning.
+  useEffect(() => {
+    // Clear existing interval to avoid duplicates (StrictMode safe)
+    if (intervalRef.current) {
       clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
 
-    return () => clearInterval(intervalRef.current);
-  }, [
-    isRunning,
-    simulationSpeed,
-    currentNode,
-    adjList,
-    setCurrentNode,
-    setVisitCounts,
-    setTotalSteps,
-  ]);
+    if (!isRunning) {
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    }
 
-  // Error calculation effect - separate from simulation loop
-  useEffect(() => {
-    if (
-      totalSteps > 1 &&
-      totalSteps % 100 === 0 &&
-      Object.keys(analyticalPi).length > 0
-    ) {
-      // Calculate Total Variation Distance (error)
-      let error = 0;
-      const nodeIds = Object.keys(analyticalPi);
-      for (const id of nodeIds) {
-        error += Math.abs(analyticalPi[id] - (empiricalPi[id] || 0));
+    intervalRef.current = setInterval(() => {
+      const node = currentNodeRef.current;
+      const neighbors = adjRef.current[node] || [node];
+      // uniform random neighbor
+      const nextNode =
+        neighbors[Math.floor(Math.random() * neighbors.length)] || node;
+
+      // update ref immediately
+      currentNodeRef.current = nextNode;
+
+      // Update React state (these will be batched by React)
+      setCurrentNode(nextNode);
+      setTotalSteps((prev) => prev + 1);
+      setVisitCounts((prev) => ({
+        ...prev,
+        [nextNode]: (prev[nextNode] || 0) + 1,
+      }));
+    }, speedRef.current);
+
+    // cleanup
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
-      error = 0.5 * error;
+    };
+  }, [isRunning, setCurrentNode, setVisitCounts, setTotalSteps]);
 
-      setErrorHistory((prevHistory) => [
-        ...prevHistory,
-        { step: totalSteps, error: error },
-      ]);
+  // Error logging: record TV error every N steps
+  useEffect(() => {
+    const LOG_EVERY = 500; // aggregation cadence; adjust for smoothness
+    if (!analyticalPi || Object.keys(analyticalPi).length === 0) return;
+    if (totalSteps > 0 && totalSteps % LOG_EVERY === 0) {
+      // compute TV distance
+      const nodeIds = Object.keys(analyticalPi);
+      let tv = 0;
+      for (const id of nodeIds) {
+        const a = analyticalPi[id] || 0;
+        const e = empiricalPi[id] || 0;
+        tv += Math.abs(a - e);
+      }
+      tv = 0.5 * tv;
+
+      setErrorHistory((prev) => [...prev, { step: totalSteps, error: tv }]);
     }
   }, [totalSteps, analyticalPi, empiricalPi, setErrorHistory]);
 }
